@@ -1,6 +1,8 @@
 name: release
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
@@ -27,6 +29,14 @@ on:
         required: true
         default: 4bd6faa86ab583b2b3e227b471c8d8fe656d82aedd0154794d1dfd10ca8d1075
 
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  MPV_TAG: ${{ inputs.mpv_tag || 'v0.42.0' }}
+  MPV_ANDROID_COMMIT: ${{ inputs.mpv_android_commit || 'ebf1b3f0cbe9d6154a43cf6ec1ad6fc32a1b2d47' }}
+  WINBUILD_TAG: ${{ inputs.winbuild_tag || '2026-11-09-d91123d9ae' }}
+  WINBUILD_ASSET: ${{ inputs.winbuild_asset || 'mpv-dev-lgpl-x86_64-20261109-git-d91123d9ae.7z' }}
+  WINBUILD_SHA256: ${{ inputs.winbuild_sha256 || '4bd6faa86ab583b2b3e227b471c8d8fe656d82aedd0154794d1dfd10ca8d1075' }}
+
 jobs:
   android:
     runs-on: ubuntu-24.04
@@ -46,9 +56,6 @@ jobs:
           sudo apt-get install -y autoconf pkgconf libtool ninja-build python3-pip gperf nasm zip
           sudo pip3 install --break-system-packages meson
       - name: Build
-        env:
-          MPV_ANDROID_COMMIT: ${{ inputs.mpv_android_commit }}
-          MPV_TAG: ${{ inputs.mpv_tag }}
         run: scripts/android.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
         with:
@@ -60,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Mirror
-        run: scripts/windows.sh "${{ inputs.winbuild_tag }}" "${{ inputs.winbuild_asset }}" "${{ inputs.winbuild_sha256 }}"
+        run: scripts/windows.sh "$WINBUILD_TAG" "$WINBUILD_ASSET" "$WINBUILD_SHA256"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -84,6 +91,6 @@ jobs:
           cat VERSIONS-*.txt > VERSIONS.txt
           cat *.sha256 > SHA256SUMS
           ls -l
-          gh release create "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" \
-            --title "${{ inputs.tag }}" --notes-file VERSIONS.txt \
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" --notes-file VERSIONS.txt \
             *.zip *.7z SHA256SUMS VERSIONS.txt
