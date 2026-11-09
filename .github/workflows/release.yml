@@ -1,0 +1,89 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create (e.g. v0.42.0-1)
+        required: true
+      mpv_tag:
+        description: mpv git tag to build for Android
+        required: true
+        default: v0.42.0
+      mpv_android_commit:
+        description: mpv-android commit whose buildscripts to use
+        required: true
+        default: ebf1b3f0cbe9d6154a43cf6ec1ad6fc32a1b2d47
+      winbuild_tag:
+        description: zhongfly/mpv-winbuild release tag to mirror
+        required: true
+        default: 2026-11-09-d91123d9ae
+      winbuild_asset:
+        description: LGPL x86_64 dev asset in that release
+        required: true
+        default: mpv-dev-lgpl-x86_64-20261109-git-d91123d9ae.7z
+      winbuild_sha256:
+        description: sha256 of that asset
+        required: true
+        default: 4bd6faa86ab583b2b3e227b471c8d8fe656d82aedd0154794d1dfd10ca8d1075
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, armv7l, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf pkgconf libtool ninja-build python3-pip gperf nasm zip
+          sudo pip3 install --break-system-packages meson
+      - name: Build
+        env:
+          MPV_ANDROID_COMMIT: ${{ inputs.mpv_android_commit }}
+          MPV_TAG: ${{ inputs.mpv_tag }}
+        run: scripts/android.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: out/
+
+  windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mirror
+        run: scripts/windows.sh "${{ inputs.winbuild_tag }}" "${{ inputs.winbuild_asset }}" "${{ inputs.winbuild_sha256 }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: out/
+
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd artifacts
+          cat VERSIONS-*.txt > VERSIONS.txt
+          cat *.sha256 > SHA256SUMS
+          ls -l
+          gh release create "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+            --title "${{ inputs.tag }}" --notes-file VERSIONS.txt \
+            *.zip *.7z SHA256SUMS VERSIONS.txt

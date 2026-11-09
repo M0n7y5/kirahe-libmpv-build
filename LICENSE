@@ -1,0 +1,6 @@
+The scripts in this repository are released under the MIT License.
+
+The binaries published in releases are built from mpv (LGPL-2.1-or-later when
+built with gpl=false), FFmpeg (LGPL-2.1-or-later with version3), libplacebo
+(LGPL-2.1-or-later), libass (ISC), dav1d (BSD-2-Clause), and their
+dependencies. Each release's VERSIONS.txt names the exact sources.
